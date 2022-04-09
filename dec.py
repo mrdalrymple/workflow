@@ -40,13 +40,27 @@ def get_sorted_list(dep_tree):
 
 ########################################
 
-
 class Stage:
-    def __init__(self):
-        self.params = []
+    def __init__(self, name, func):
+        self.name = name
+        self.func = func
+        self.deps = []
 
 
+    def proc(self):
+        if hasattr(self, "__stage_deps__"):
+            self.deps.extend(self.__stage_deps__)
+        if self.func and hasattr(self.func, "__stage_deps__"):
+            self.deps.extend(self.func.__stage_deps__)
 
+    def get_deps(self):
+        return self.deps
+
+    def __call__(self):
+        if self.func:
+            self.func()
+
+_STGS = []
 _STAGES = {}
 
 
@@ -60,6 +74,7 @@ def _add_dep(func, dep):
 def stage(name):
     def decorator(func):
         _STAGES[name] = func
+        _STGS.append(Stage(name, func))
         return func
     return decorator
 
@@ -93,6 +108,27 @@ def _print_dep_tree(dep_tree):
 
 # main logic for the workflow framework
 def main():
+    stages = _STGS
+
+    for stage in stages:
+        stage.proc()
+
+    dep_tree = {}
+    stage_dict = {}
+    for stage in stages:
+        deps = stage.get_deps()
+        dep_tree[stage.name] = deps
+        stage_dict[stage.name] = stage
+
+    _print_dep_tree(dep_tree)
+
+    sorted_stages = get_sorted_list(dep_tree)
+
+    for stage in sorted_stages:
+        #_run_stage(stage)
+        stage_dict[stage]()
+
+def main_a():
     stages = _get_stages()
 
     dep_tree = {}
