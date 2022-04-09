@@ -39,7 +39,7 @@ def get_sorted_list(dep_tree):
     return graph.topological_sort()
 
 ########################################
-
+import inspect
 class Stage:
     def __init__(self, name, func):
         self.name = name
@@ -55,6 +55,12 @@ class Stage:
 
     def get_deps(self):
         return self.deps
+
+    def fail(self, message):
+        file = inspect.getsourcefile(self.func)
+        print(f"FAIL(file): {file}")
+        lines, lineno = inspect.getsourcelines(self.func)
+        print(f"FAIL(lines):{lineno}")
 
     def __call__(self):
         if self.func:
@@ -109,9 +115,11 @@ def _print_dep_tree(dep_tree):
 # main logic for the workflow framework
 def main():
     stages = _STGS
+    stage_names = []
 
     for stage in stages:
         stage.proc()
+        stage_names.append(stage.name)
 
     dep_tree = {}
     stage_dict = {}
@@ -120,6 +128,14 @@ def main():
         dep_tree[stage.name] = deps
         stage_dict[stage.name] = stage
 
+    print(f"stages: {stages}")
+    # Validate deps
+    for name, stage in stage_dict.items():
+        deps = stage.get_deps()
+        for dep in deps:
+            if dep not in stage_names:
+                stage.fail(f"no such dep: {dep}")
+                raise Exception(f"For stage '{name}', no such dependency: {dep}")
 
     _print_dep_tree(dep_tree)
 
