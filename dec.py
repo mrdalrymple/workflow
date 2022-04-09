@@ -120,6 +120,7 @@ def main():
         dep_tree[stage.name] = deps
         stage_dict[stage.name] = stage
 
+
     _print_dep_tree(dep_tree)
 
     sorted_stages = get_sorted_list(dep_tree)
@@ -158,6 +159,7 @@ def build():
 
 @stage("lib_dyn")
 @depends("lib")
+@depends("hello")
 def build_lib():
     print("build -- lib_dyn")
 
