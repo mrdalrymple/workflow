@@ -105,6 +105,8 @@ def _run_stage(name):
 
 #######
 
+import sys
+
 def _print_dep_tree(dep_tree):
     print(f"-------- DEPS --------")
     for stage in dep_tree:
@@ -113,6 +115,15 @@ def _print_dep_tree(dep_tree):
     print(f"-------- ---- --------")
 
 # main logic for the workflow framework
+def _print_deco_error(dec, message):
+    file = inspect.getsourcefile(dec)
+    lines, lineno = inspect.getsourcelines(dec)
+    func_name = dec.__name__
+    print(f'File "{file}", line {lineno}')
+    #print(f"  {func_name}()")
+    print(f"> {lines[0].strip()}")
+    print(f"Error: {message}")
+
 def main():
     stages = _STGS
     stage_names = []
@@ -128,14 +139,16 @@ def main():
         dep_tree[stage.name] = deps
         stage_dict[stage.name] = stage
 
-    print(f"stages: {stages}")
+    #print(f"stages: {stages}")
     # Validate deps
     for name, stage in stage_dict.items():
         deps = stage.get_deps()
         for dep in deps:
             if dep not in stage_names:
-                stage.fail(f"no such dep: {dep}")
-                raise Exception(f"For stage '{name}', no such dependency: {dep}")
+                _print_deco_error(stage.func, f"Stage '{name}', no such dependency: {dep}")
+                sys.exit(1)
+                #stage.fail(f"no such dep: {dep}")
+                #raise Exception(f"For stage '{name}', no such dependency: {dep}")
 
     _print_dep_tree(dep_tree)
 
