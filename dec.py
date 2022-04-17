@@ -40,6 +40,14 @@ def get_sorted_list(dep_tree):
 
 ########################################
 import inspect
+
+class Dependency:
+    def __init__(self, name, func):
+        self.name = name
+        self.func = func
+        pass
+    pass
+
 class Stage:
     def __init__(self, name, func):
         self.name = name
@@ -70,11 +78,11 @@ _STGS = []
 _STAGES = {}
 
 
-def _add_dep(func, dep):
+def _add_dep(func, name):
     if not hasattr(func, "__stage_deps__"):
         func.__stage_deps__ = []
 
-    func.__stage_deps__.append(dep)
+    func.__stage_deps__.append(Dependency(name, func))
 
 
 def stage(name):
@@ -121,7 +129,7 @@ def _print_deco_error(dec, message):
     func_name = dec.__name__
     print(f'File "{file}", line {lineno}')
     #print(f"  {func_name}()")
-    print(f"> {lines[0].strip()}")
+    print(f" >  {lines[0].strip()}")
     print(f"Error: {message}")
 
 def main():
@@ -136,7 +144,8 @@ def main():
     stage_dict = {}
     for stage in stages:
         deps = stage.get_deps()
-        dep_tree[stage.name] = deps
+        dep_names = [x.name for x in deps]
+        dep_tree[stage.name] = dep_names
         stage_dict[stage.name] = stage
 
     #print(f"stages: {stages}")
@@ -144,8 +153,8 @@ def main():
     for name, stage in stage_dict.items():
         deps = stage.get_deps()
         for dep in deps:
-            if dep not in stage_names:
-                _print_deco_error(stage.func, f"Stage '{name}', no such dependency: {dep}")
+            if dep.name not in stage_names:
+                _print_deco_error(dep.func, f"Stage '{name}', no such dependency: {dep.name}")
                 sys.exit(1)
                 #stage.fail(f"no such dep: {dep}")
                 #raise Exception(f"For stage '{name}', no such dependency: {dep}")
