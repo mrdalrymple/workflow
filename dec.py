@@ -45,28 +45,33 @@ class Dependency:
     def __init__(self, name, caller):
         self.name = name
         self.caller = caller
-        pass
-    pass
 
 class Stage:
-    def __init__(self, name, func):
+    def __init__(self, name, func, deps=None):
         self.name = name
         self.func = func
         self.deps = []
+
+        if deps:
+            self.deps.extend(deps)
 
 
     def proc(self):
         if hasattr(self, "__stage_deps__"):
             self.deps.extend(self.__stage_deps__)
+            del self.__stage_deps__
         if self.func and hasattr(self.func, "__stage_deps__"):
             self.deps.extend(self.func.__stage_deps__)
+            del self.func.__stage_deps__
 
     def get_deps(self):
         return self.deps
+        #return [x.name for x in self.deps]
 
-    def __call__(self):
+    def __call__(self, *args, **kwargs):
+        print(f"STAGE({self.name}): CALL")
         if self.func:
-            self.func()
+            self.func(*args, **kwargs)
 
 class StageManager:
     def __init__(self):
@@ -86,29 +91,71 @@ class StageManager:
 _STAGE_MANAGER = StageManager()
 
 
-def _add_dep(func, name, caller):
-    if not hasattr(func, "__stage_deps__"):
-        func.__stage_deps__ = []
+def _add_dep(func, dependency):
+    if isinstance(func, Stage):
+        print(f"isstage")
+        func.deps.append(dependency)
+    else:
+        print(f"isNOTstage")
+        if not hasattr(func, "__stage_deps__"):
+            func.__stage_deps__ = []
 
-    func.__stage_deps__.append(Dependency(name, caller))
+        func.__stage_deps__.append(dependency)
 
 #import functools
 from inspect import getframeinfo, stack
 
 def stage(name):
+
+    func = None
+    if callable(name):
+        func = name
+        name = None
+
+
     #@functools.wraps(name)
-    def decorator(func):
-        _STAGE_MANAGER.add(Stage(name, func))
-        return func
+    def decorator(f):
+        deps = None
+        if hasattr(f, "__stage_deps__"):
+            deps = f.__stage_deps__
+            del f.__stage_deps__
+
+        s = Stage(
+            #name=name or f.__name__.lower().replace("_", "-"),
+            #name=name or f.__name__.lower(),
+            name=name or f.__name__,
+            func=f,
+            deps=deps
+        )
+
+        _STAGE_MANAGER.add(s)
+        s.__doc__ = f.__doc__
+        return s
+
+    if func is not None:
+        return decorator(func)
+
     return decorator
 
 
 def depends(name):
     caller = getframeinfo(stack()[1][0])
+    #print(f"depends-name: {name}")
+    #if callable(name):
+        #print("CALLABLE!")
     #@functools.wraps(name)
     def decorator(func):
         #caller_stage_func = getframeinfo(stack()[1][0])
-        _add_dep(func, name, caller)
+        stage_name = None
+        if isinstance(name, Stage):
+            stage_name = name.name
+            print(f"INSTANCE2")
+        elif callable(name):
+            stage_name = name.__name__
+            print(f"CALLABLE2")
+        else:
+            stage_name = name
+        _add_dep(func, Dependency(stage_name, caller))
         return func
     return decorator
 
@@ -177,11 +224,14 @@ def build_lib():
 
 @stage("exe")
 @depends("lib")
-@depends("lib_dyn")
+#@depends("lib_dyn")
+#@depends("build-lib")
+@depends(build_lib)
 def build():
     print("build -- exe")
 
-@stage("lib_dyn")
+#@stage("lib_dyn")
+@stage
 #@depends("hello")
 @depends("lib")
 def build_lib():
