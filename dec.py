@@ -64,18 +64,26 @@ class Stage:
     def get_deps(self):
         return self.deps
 
-    def fail(self, message):
-        file = inspect.getsourcefile(self.func)
-        print(f"FAIL(file): {file}")
-        lines, lineno = inspect.getsourcelines(self.func)
-        print(f"FAIL(lines):{lineno}")
-
     def __call__(self):
         if self.func:
             self.func()
 
-_STGS = []
-_STAGES = {}
+class StageManager:
+    def __init__(self):
+        self.stages = []
+    
+    def add(self, stage):
+        self.stages.append(stage)
+
+    def get_names(self):
+        return [x.name for x in self.stages]
+
+    def proc_all(self):
+        for stage in self.stages:
+            stage.proc()
+
+
+_STAGES = StageManager()
 
 
 def _add_dep(func, name, caller):
@@ -84,46 +92,27 @@ def _add_dep(func, name, caller):
 
     func.__stage_deps__.append(Dependency(name, caller))
 
-import functools
+#import functools
+from inspect import getframeinfo, stack
 
 def stage(name):
     #@functools.wraps(name)
     def decorator(func):
-        _STAGES[name] = func
-        _STGS.append(Stage(name, func))
+        _STAGES.add(Stage(name, func))
         return func
     return decorator
 
-from inspect import getframeinfo, stack
 
 def depends(name):
     caller = getframeinfo(stack()[1][0])
-    #print(f"caller={caller}")
-    #print(f"--depends({name})")
     #@functools.wraps(name)
     def decorator(func):
-        caller_stage_func = getframeinfo(stack()[1][0])
-        #print(f"--depends({name})--dec({func})")
+        #caller_stage_func = getframeinfo(stack()[1][0])
         _add_dep(func, name, caller)
         return func
     return decorator
 
-#######
-
-def _get_stages():
-    return _STAGES.keys()
-
-def _get_deps(name):
-    deps = []
-    func = _STAGES[name]
-    if hasattr(func, "__stage_deps__"):
-        deps = func.__stage_deps__
-    return deps
-
-def _run_stage(name):
-    _STAGES[name]()
-
-#######
+########################################
 
 import sys
 
@@ -133,29 +122,6 @@ def _print_dep_tree(dep_tree):
         deps = dep_tree[stage]
         print(f"{stage} -> {deps}")
     print(f"-------- ---- --------")
-
-# main logic for the workflow framework
-def _print_deco_error(dec, message):
-    file = inspect.getsourcefile(dec)
-    lines, lineno = inspect.getsourcelines(dec)
-    func_name = dec.__name__
-    print(f'File "{file}", line {lineno}')
-    #print(f"  {func_name}()")
-    print(f" >  {lines[0].strip()}")
-    print(f"Error: {message}")
-
-def _print_deco_error2(caller, message):
-    file = caller.filename
-    lineno = caller.lineno
-    print(f"func: {caller.function}")
-    print(f"index: {caller.index}")
-    #func_name = dec.__name__
-    print(f'File "{file}", line {lineno}')
-    #print(f"  {func_name}()")
-    for x in caller.code_context:
-        print(f"=={x}")
-    #print(f" >  {lines[0].strip()}")
-    print(f"Error: {message}")
 
 def _print_stage_dependency_error(stage, dependency, message):
     stage_file = inspect.getsourcefile(stage.func)
@@ -171,57 +137,35 @@ def _print_stage_dependency_error(stage, dependency, message):
     print(f"    {dependency.caller.code_context[dependency.caller.index].strip()}")
     print(f"Error: {message}")
 
-def main():
-    stages = _STGS
-    stage_names = []
+####################
 
-    for stage in stages:
-        stage.proc()
-        stage_names.append(stage.name)
+def main(stage_manager : StageManager):
+    stage_names = stage_manager.get_names()
+
+    stage_manager.proc_all()
 
     dep_tree = {}
     stage_dict = {}
-    for stage in stages:
+    for stage in stage_manager.stages:
         deps = stage.get_deps()
         dep_names = [x.name for x in deps]
         dep_tree[stage.name] = dep_names
         stage_dict[stage.name] = stage
 
-    #print(f"stages: {stages}")
     # Validate deps
     for name, stage in stage_dict.items():
         deps = stage.get_deps()
         for dep in deps:
             if dep.name not in stage_names:
                 _print_stage_dependency_error(stage, dep, f"Stage '{stage.name}', no such dependency: {dep.name}")
-                #_print_deco_error(stage.func, f"stage: {stage.name}")
-                #_print_deco_error2(dep.caller, f"Stage '{name}', no such dependency: {dep.name}")
                 sys.exit(1)
-                #stage.fail(f"no such dep: {dep}")
-                #raise Exception(f"For stage '{name}', no such dependency: {dep}")
 
     _print_dep_tree(dep_tree)
 
     sorted_stages = get_sorted_list(dep_tree)
 
     for stage in sorted_stages:
-        #_run_stage(stage)
         stage_dict[stage]()
-
-def main_a():
-    stages = _get_stages()
-
-    dep_tree = {}
-    for stage in stages:
-        deps = _get_deps(stage)
-        dep_tree[stage] = deps
-
-    _print_dep_tree(dep_tree)
-
-    sorted_stages = get_sorted_list(dep_tree)
-
-    for stage in sorted_stages:
-        _run_stage(stage)
 
 
 ######################
@@ -237,15 +181,12 @@ def build():
     print("build -- exe")
 
 @stage("lib_dyn")
-@depends("hello")
+#@depends("hello")
 @depends("lib")
 def build_lib():
     print("build -- lib_dyn")
 
-#print(build_lib.__name__)
-#print(build.__name__)
-
 #####################
 
 if __name__ == '__main__':
-    main()
+    main(_STAGES)
