@@ -83,7 +83,7 @@ class StageManager:
             stage.proc()
 
 
-_STAGES = StageManager()
+_STAGE_MANAGER = StageManager()
 
 
 def _add_dep(func, name, caller):
@@ -98,7 +98,7 @@ from inspect import getframeinfo, stack
 def stage(name):
     #@functools.wraps(name)
     def decorator(func):
-        _STAGES.add(Stage(name, func))
+        _STAGE_MANAGER.add(Stage(name, func))
         return func
     return decorator
 
@@ -139,7 +139,8 @@ def _print_stage_dependency_error(stage, dependency, message):
 
 ####################
 
-def main(stage_manager : StageManager):
+def main():
+    stage_manager = _STAGE_MANAGER
     stage_names = stage_manager.get_names()
 
     stage_manager.proc_all()
@@ -162,9 +163,9 @@ def main(stage_manager : StageManager):
 
     _print_dep_tree(dep_tree)
 
-    sorted_stages = get_sorted_list(dep_tree)
+    sorted_STAGE_MANAGER = get_sorted_list(dep_tree)
 
-    for stage in sorted_stages:
+    for stage in sorted_STAGE_MANAGER:
         stage_dict[stage]()
 
 
@@ -189,4 +190,4 @@ def build_lib():
 #####################
 
 if __name__ == '__main__':
-    main(_STAGES)
+    main()
