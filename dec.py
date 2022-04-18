@@ -42,9 +42,9 @@ def get_sorted_list(dep_tree):
 import inspect
 
 class Dependency:
-    def __init__(self, name, func):
+    def __init__(self, name, caller):
         self.name = name
-        self.func = func
+        self.caller = caller
         pass
     pass
 
@@ -78,25 +78,37 @@ _STGS = []
 _STAGES = {}
 
 
-def _add_dep(func, name):
+def _add_dep(func, name, caller):
     if not hasattr(func, "__stage_deps__"):
         func.__stage_deps__ = []
 
-    func.__stage_deps__.append(Dependency(name, func))
+    func.__stage_deps__.append(Dependency(name, caller))
 
+import functools
 
 def stage(name):
+    #@functools.wraps(name)
     def decorator(func):
         _STAGES[name] = func
         _STGS.append(Stage(name, func))
         return func
     return decorator
 
+from inspect import getframeinfo, stack
+
 def depends(name):
+    caller = getframeinfo(stack()[1][0])
+    #print(f"caller={caller}")
+    #print(f"--depends({name})")
+    #@functools.wraps(name)
     def decorator(func):
-        _add_dep(func, name)
+        caller_stage_func = getframeinfo(stack()[1][0])
+        #print(f"--depends({name})--dec({func})")
+        _add_dep(func, name, caller)
         return func
     return decorator
+
+#######
 
 def _get_stages():
     return _STAGES.keys()
@@ -132,6 +144,33 @@ def _print_deco_error(dec, message):
     print(f" >  {lines[0].strip()}")
     print(f"Error: {message}")
 
+def _print_deco_error2(caller, message):
+    file = caller.filename
+    lineno = caller.lineno
+    print(f"func: {caller.function}")
+    print(f"index: {caller.index}")
+    #func_name = dec.__name__
+    print(f'File "{file}", line {lineno}')
+    #print(f"  {func_name}()")
+    for x in caller.code_context:
+        print(f"=={x}")
+    #print(f" >  {lines[0].strip()}")
+    print(f"Error: {message}")
+
+def _print_stage_dependency_error(stage, dependency, message):
+    stage_file = inspect.getsourcefile(stage.func)
+    stage_lines, stage_lineno = inspect.getsourcelines(stage.func)
+    stage_module = inspect.getmodule(stage.func)
+    #stage_module_name = inspect.getmodulename(stage.func)
+
+    #print(f'  File "{stage_file}", line {stage_lineno}, in {stage_module}')
+    print(f'  File "{stage_file}", line {stage_lineno}')
+    print(f"    {stage_lines[0].strip()}")
+    #print(f'  File "{dependency.caller.filename}", line {dependency.caller.lineno}, in {dependency.caller.name}')
+    print(f'  File "{dependency.caller.filename}", line {dependency.caller.lineno}')
+    print(f"    {dependency.caller.code_context[dependency.caller.index].strip()}")
+    print(f"Error: {message}")
+
 def main():
     stages = _STGS
     stage_names = []
@@ -154,7 +193,9 @@ def main():
         deps = stage.get_deps()
         for dep in deps:
             if dep.name not in stage_names:
-                _print_deco_error(dep.func, f"Stage '{name}', no such dependency: {dep.name}")
+                _print_stage_dependency_error(stage, dep, f"Stage '{stage.name}', no such dependency: {dep.name}")
+                #_print_deco_error(stage.func, f"stage: {stage.name}")
+                #_print_deco_error2(dep.caller, f"Stage '{name}', no such dependency: {dep.name}")
                 sys.exit(1)
                 #stage.fail(f"no such dep: {dep}")
                 #raise Exception(f"For stage '{name}', no such dependency: {dep}")
@@ -196,10 +237,13 @@ def build():
     print("build -- exe")
 
 @stage("lib_dyn")
-@depends("lib")
 @depends("hello")
+@depends("lib")
 def build_lib():
     print("build -- lib_dyn")
+
+#print(build_lib.__name__)
+#print(build.__name__)
 
 #####################
 
