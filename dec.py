@@ -66,10 +66,8 @@ class Stage:
 
     def get_deps(self):
         return self.deps
-        #return [x.name for x in self.deps]
 
     def __call__(self, *args, **kwargs):
-        print(f"STAGE({self.name}): CALL")
         if self.func:
             self.func(*args, **kwargs)
 
@@ -93,10 +91,8 @@ _STAGE_MANAGER = StageManager()
 
 def _add_dep(func, dependency):
     if isinstance(func, Stage):
-        print(f"isstage")
         func.deps.append(dependency)
     else:
-        print(f"isNOTstage")
         if not hasattr(func, "__stage_deps__"):
             func.__stage_deps__ = []
 
@@ -121,8 +117,6 @@ def stage(name):
             del f.__stage_deps__
 
         s = Stage(
-            #name=name or f.__name__.lower().replace("_", "-"),
-            #name=name or f.__name__.lower(),
             name=name or f.__name__,
             func=f,
             deps=deps
@@ -138,24 +132,22 @@ def stage(name):
     return decorator
 
 
-def depends(name):
+def depends(stage):
     caller = getframeinfo(stack()[1][0])
-    #print(f"depends-name: {name}")
-    #if callable(name):
-        #print("CALLABLE!")
+
     #@functools.wraps(name)
     def decorator(func):
         #caller_stage_func = getframeinfo(stack()[1][0])
+
+        # Did user pass in a stage/func or a string representing the stage?
         stage_name = None
-        if isinstance(name, Stage):
-            stage_name = name.name
-            print(f"INSTANCE2")
-        elif callable(name):
-            stage_name = name.__name__
-            print(f"CALLABLE2")
+        if isinstance(stage, Stage):
+            stage_name = stage.name
         else:
-            stage_name = name
+            stage_name = stage
+
         _add_dep(func, Dependency(stage_name, caller))
+
         return func
     return decorator
 
@@ -222,20 +214,21 @@ def main():
 def build_lib():
     print("build -- lib")
 
-@stage("exe")
-@depends("lib")
-#@depends("lib_dyn")
-#@depends("build-lib")
-@depends(build_lib)
-def build():
-    print("build -- exe")
-
-#@stage("lib_dyn")
-@stage
+@stage("lib_dyn")
+#@stage
 #@depends("hello")
 @depends("lib")
-def build_lib():
+def lib_dyn():
     print("build -- lib_dyn")
+
+
+@depends("lib")
+@stage("exe")
+#@depends("lib_dyn")
+#@depends("build-lib")
+@depends(lib_dyn)
+def build():
+    print("build -- exe")
 
 #####################
 
