@@ -1,3 +1,5 @@
+########################################
+
 from collections import defaultdict
 
 class Graph:
@@ -39,6 +41,7 @@ def get_sorted_list(dep_tree):
     return graph.topological_sort()
 
 ########################################
+
 import inspect
 
 class Dependency:
@@ -85,6 +88,8 @@ class StageManager:
         for stage in self.stages:
             stage.proc()
 
+
+########################################
 
 _STAGE_MANAGER = StageManager()
 
@@ -208,7 +213,7 @@ def main():
         stage_dict[stage]()
 
 
-######################
+########################################
 
 @stage("lib")
 def build_lib():
