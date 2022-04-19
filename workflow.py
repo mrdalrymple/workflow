@@ -44,26 +44,40 @@ def get_sorted_list(dep_tree):
 
 import inspect
 
+class Artifact:
+    def __init__(self, directory, caller=None):
+        self.directory = directory
+        self.caller = caller
+
 class Dependency:
-    def __init__(self, name, caller):
+    def __init__(self, name, caller=None):
         self.name = name
         self.caller = caller
 
 class Stage:
-    def __init__(self, name, func, deps=None):
+    def __init__(self, name, func, arts=None, deps=None):
         self.name = name
         self.func = func
         self.deps = []
+        self.artifacts = []
 
         if deps:
             self.deps.extend(deps)
 
+        if arts:
+            self.artifacts.extend(arts)
+
     def get_deps(self):
         return self.deps
+
+    def get_artifacts(self):
+        return self.artifacts
 
     def __call__(self, *args, **kwargs):
         if self.func:
             self.func(*args, **kwargs)
+
+####################
 
 class StageManager:
     def __init__(self):
@@ -90,6 +104,15 @@ def _add_dep(func, dependency):
 
         func.__stage_deps__.append(dependency)
 
+def _add_artifact(func, artifact):
+    if isinstance(func, Stage):
+        func.artifacts.append(artifact)
+    else:
+        if not hasattr(func, "__stage_arts__"):
+            func.__stage_arts__ = []
+
+        func.__stage_arts__.append(artifact)
+
 from inspect import getframeinfo, stack
 
 def stage(name):
@@ -105,10 +128,16 @@ def stage(name):
             deps = f.__stage_deps__
             del f.__stage_deps__
 
+        artifacts = None
+        if hasattr(f, "__stage_arts__"):
+            artifacts = f.__stage_arts__
+            del f.__stage_arts__
+
         s = Stage(
             name=name or f.__name__,
             func=f,
-            deps=deps
+            deps=deps,
+            arts=artifacts
         )
 
         _STAGE_MANAGER.add(s)
@@ -139,6 +168,15 @@ def depends(stage):
         return func
     return decorator
 
+def artifact(directory):
+    caller = getframeinfo(stack()[1][0])
+
+    def decorator(func):
+        _add_artifact(func, Artifact(directory, caller))
+        return func
+
+    return decorator
+
 ########################################
 
 import sys
@@ -150,7 +188,7 @@ def _print_dep_tree(dep_tree):
         print(f"{stage} -> {deps}")
     print(f"-------- ---- --------")
 
-def _print_stage_dependency_error(stage, dependency, message):
+def _print_stage_dependency_error(message, stage, dependency=None):
     stage_file = inspect.getsourcefile(stage.func)
     stage_lines, stage_lineno = inspect.getsourcelines(stage.func)
     stage_module = inspect.getmodule(stage.func)
@@ -160,9 +198,39 @@ def _print_stage_dependency_error(stage, dependency, message):
     print(f'  File "{stage_file}", line {stage_lineno}')
     print(f"    {stage_lines[0].strip()}")
     #print(f'  File "{dependency.caller.filename}", line {dependency.caller.lineno}, in {dependency.caller.name}')
-    print(f'  File "{dependency.caller.filename}", line {dependency.caller.lineno}')
-    print(f"    {dependency.caller.code_context[dependency.caller.index].strip()}")
+    if dependency and dependency.caller:
+        print(f'  File "{dependency.caller.filename}", line {dependency.caller.lineno}')
+        print(f"    {dependency.caller.code_context[dependency.caller.index].strip()}")
     print(f"Error: {message}")
+
+def _print_stage_artifact_error(message, stage):
+    stage_file = inspect.getsourcefile(stage.func)
+    stage_lines, stage_lineno = inspect.getsourcelines(stage.func)
+
+    print(f'  File "{stage_file}", line {stage_lineno}')
+    print(f"    {stage_lines[0].strip()}")
+
+    print(f"Error: {message}")
+
+
+####################
+
+from pathlib import Path
+import shutil
+
+def _save_artifact(stage, directory, replace=True):
+    artifact_root = Path(".wf")
+    stage_root = Path(artifact_root, stage.name)
+
+    artifact_root.mkdir(exist_ok=True)
+
+    # Cleanup existing directory (local build?)
+    if replace and stage_root.exists():
+        shutil.rmtree(stage_root)
+
+    stage_root.mkdir(exist_ok=True)
+
+    shutil.copytree(directory, stage_root)
 
 ####################
 
@@ -187,16 +255,30 @@ def main(show_dep_tree):
         deps = stage.get_deps()
         for dep in deps:
             if dep.name not in stage_names:
-                _print_stage_dependency_error(stage, dep, f"Stage '{stage.name}', no such dependency: {dep.name}")
+                _print_stage_dependency_error(f"Stage '{stage.name}', no such dependency: {dep.name}", stage, dep)
                 sys.exit(1)
+
+    # Validate artifacts (only 1 allowed)
+    for _, stage in stage_dict.items():
+        artifacts = stage.get_artifacts()
+        art_count = len(artifacts)
+        if art_count > 1:
+            _print_stage_artifact_error(f"Stage '{stage.name}', only one artifact allowed, found: {art_count}", stage)
+            sys.exit(1)
 
     if show_dep_tree:
         _print_dep_tree(dep_tree)
 
     sorted_STAGE_MANAGER = get_sorted_list(dep_tree)
 
-    for stage in sorted_STAGE_MANAGER:
-        stage_dict[stage]()
+    for stage_name in sorted_STAGE_MANAGER:
+        stage = stage_dict[stage_name]
+        stage()
+        for artifact in stage.artifacts:
+            dir = artifact.directory
+            _save_artifact(stage, dir)
+            #print(f"art: {x.directory}")
+
 
 
 ########################################

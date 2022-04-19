@@ -12,11 +12,11 @@ def lib_dyn():
     print("build -- lib_dyn")
 
 
-@wf.depends("lib")
 @wf.stage("exe")
-#@wf.depends("lib_dyn")
-#@wf.depends("build-lib")
+@wf.depends("lib")
 @wf.depends(lib_dyn)
+@wf.artifact("bin")
+#@wf.artifact("hello")
 def build():
     print("build -- exe")
 
