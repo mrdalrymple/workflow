@@ -58,15 +58,6 @@ class Stage:
         if deps:
             self.deps.extend(deps)
 
-
-    def proc(self):
-        if hasattr(self, "__stage_deps__"):
-            self.deps.extend(self.__stage_deps__)
-            del self.__stage_deps__
-        if self.func and hasattr(self.func, "__stage_deps__"):
-            self.deps.extend(self.func.__stage_deps__)
-            del self.func.__stage_deps__
-
     def get_deps(self):
         return self.deps
 
@@ -84,10 +75,6 @@ class StageManager:
     def get_names(self):
         return [x.name for x in self.stages]
 
-    def proc_all(self):
-        for stage in self.stages:
-            stage.proc()
-
 
 ########################################
 
@@ -103,7 +90,6 @@ def _add_dep(func, dependency):
 
         func.__stage_deps__.append(dependency)
 
-#import functools
 from inspect import getframeinfo, stack
 
 def stage(name):
@@ -113,8 +99,6 @@ def stage(name):
         func = name
         name = None
 
-
-    #@functools.wraps(name)
     def decorator(f):
         deps = None
         if hasattr(f, "__stage_deps__"):
@@ -140,7 +124,6 @@ def stage(name):
 def depends(stage):
     caller = getframeinfo(stack()[1][0])
 
-    #@functools.wraps(name)
     def decorator(func):
         #caller_stage_func = getframeinfo(stack()[1][0])
 
@@ -186,8 +169,6 @@ def _print_stage_dependency_error(stage, dependency, message):
 def main():
     stage_manager = _STAGE_MANAGER
     stage_names = stage_manager.get_names()
-
-    stage_manager.proc_all()
 
     dep_tree = {}
     stage_dict = {}

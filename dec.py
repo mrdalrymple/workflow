@@ -12,8 +12,8 @@ def lib_dyn():
     print("build -- lib_dyn")
 
 
-@wf.stage("exe")
 @wf.depends("lib")
+@wf.stage("exe")
 #@wf.depends("lib_dyn")
 #@wf.depends("build-lib")
 @wf.depends(lib_dyn)
