@@ -92,6 +92,11 @@ class StageManager:
 
 ########################################
 
+def get(env_variable):
+    return os.environ[env_variable]
+
+########################################
+
 _STAGE_MANAGER = StageManager()
 
 
@@ -234,9 +239,30 @@ def _save_artifact(stage, directory):
 
     shutil.copytree(directory, stage_root)
 
+ENV_DEP_ART_PATH_PREFIX = "STAGE_"
+ENV_DEP_ART_PATH_SUFFIX = "_BIN"
+
+def _get_env_from_deps(stage, deps, prefix=None, suffix=None):
+    wf_root = Path(".wf")
+    artifact_root = Path(wf_root, "artifacts")
+
+    if prefix is None:
+        prefix = ENV_DEP_ART_PATH_PREFIX
+    if suffix is None:
+        suffix = ENV_DEP_ART_PATH_SUFFIX
+
+    env = {}
+    for dep in deps:
+        env_name = f"{prefix}{dep.name}{suffix}".upper()
+        env_value = str(Path(artifact_root, dep.name))
+        env[env_name] = env_value
+
+    return env
+
 ####################
 
 import click
+import os
 
 @click.command()
 @click.option("--stage", "target_stage")
@@ -272,6 +298,7 @@ def main(target_stage, show_dep_tree):
     if show_dep_tree:
         _print_dep_tree(dep_tree)
 
+    # Determine stages to run
     if target_stage is not None:
         if target_stage not in stage_dict.keys():
             raise click.BadOptionUsage(target_stage, "Unknown stage")
@@ -279,9 +306,22 @@ def main(target_stage, show_dep_tree):
     else:
         stages_to_run = get_sorted_list(dep_tree)
 
+    # Run stages
     for stage_name in stages_to_run:
         stage = stage_dict[stage_name]
+
+        # Pull in dependencies and calculate their env variable name (that contains the path to get at the files)
+        deps = stage.get_deps()
+        stage_env = _get_env_from_deps(stage, deps)
+
+        for key,value in stage_env.items():
+            #print(f"{key}={value}")
+            os.environ[key] = value
+
+        # Run current stage
         stage()
+
+        # Save stage artifact
         for artifact in stage.artifacts:
             dir = artifact.directory
             _save_artifact(stage, dir)
