@@ -239,8 +239,9 @@ def _save_artifact(stage, directory):
 import click
 
 @click.command()
+@click.option("--stage", "target_stage")
 @click.option("--show-dep-tree", is_flag=True)
-def main(show_dep_tree):
+def main(target_stage, show_dep_tree):
     stage_manager = _STAGE_MANAGER
     stage_names = stage_manager.get_names()
 
@@ -271,9 +272,14 @@ def main(show_dep_tree):
     if show_dep_tree:
         _print_dep_tree(dep_tree)
 
-    sorted_STAGE_MANAGER = get_sorted_list(dep_tree)
+    if target_stage is not None:
+        if target_stage not in stage_dict.keys():
+            raise click.BadOptionUsage(target_stage, "Unknown stage")
+        stages_to_run = [target_stage]
+    else:
+        stages_to_run = get_sorted_list(dep_tree)
 
-    for stage_name in sorted_STAGE_MANAGER:
+    for stage_name in stages_to_run:
         stage = stage_dict[stage_name]
         stage()
         for artifact in stage.artifacts:
