@@ -1,5 +1,7 @@
 import workflow as wf
 
+from pathlib import Path
+
 @wf.stage("lib")
 def build_lib():
     print("build -- lib")
@@ -19,6 +21,8 @@ def lib_dyn():
 #@wf.artifact("hello")
 def build():
     print("build -- exe")
+    Path("bin").mkdir(exist_ok=True)
+    Path("bin", "myexe.exe").touch()
 
 #####################
 

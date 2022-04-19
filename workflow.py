@@ -218,17 +218,19 @@ def _print_stage_artifact_error(message, stage):
 from pathlib import Path
 import shutil
 
-def _save_artifact(stage, directory, replace=True):
-    artifact_root = Path(".wf")
+# TODO: directory param should instead be a storage driver (so it could be local or something else)
+# Or should also take a storage driver, copy locally first, then upload to storage driver
+def _save_artifact(stage, directory):
+    wf_root = Path(".wf")
+    artifact_root = Path(wf_root, "artifacts")
     stage_root = Path(artifact_root, stage.name)
 
+    wf_root.mkdir(exist_ok=True)
     artifact_root.mkdir(exist_ok=True)
 
     # Cleanup existing directory (local build?)
-    if replace and stage_root.exists():
+    if stage_root.exists():
         shutil.rmtree(stage_root)
-
-    stage_root.mkdir(exist_ok=True)
 
     shutil.copytree(directory, stage_root)
 
@@ -277,7 +279,6 @@ def main(show_dep_tree):
         for artifact in stage.artifacts:
             dir = artifact.directory
             _save_artifact(stage, dir)
-            #print(f"art: {x.directory}")
 
 
 
