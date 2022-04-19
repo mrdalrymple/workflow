@@ -166,7 +166,11 @@ def _print_stage_dependency_error(stage, dependency, message):
 
 ####################
 
-def main():
+import click
+
+@click.command()
+@click.option("--show-dep-tree", is_flag=True)
+def main(show_dep_tree):
     stage_manager = _STAGE_MANAGER
     stage_names = stage_manager.get_names()
 
@@ -186,7 +190,8 @@ def main():
                 _print_stage_dependency_error(stage, dep, f"Stage '{stage.name}', no such dependency: {dep.name}")
                 sys.exit(1)
 
-    _print_dep_tree(dep_tree)
+    if show_dep_tree:
+        _print_dep_tree(dep_tree)
 
     sorted_STAGE_MANAGER = get_sorted_list(dep_tree)
 
